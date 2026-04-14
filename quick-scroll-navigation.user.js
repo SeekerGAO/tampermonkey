@@ -14,6 +14,8 @@
   'use strict';
 
   const PANEL_ID = 'tm-quick-scroll-panel';
+  let panel = null;
+  let refreshScheduled = false;
 
   if (document.getElementById(PANEL_ID)) {
     return;
@@ -73,9 +75,6 @@
     }
   `;
 
-  const panel = document.createElement('div');
-  panel.id = PANEL_ID;
-
   const actions = [
     {
       label: '顶部',
@@ -103,6 +102,10 @@
     return Math.max(0, root.scrollHeight - window.innerHeight);
   }
 
+  function isPageScrollable() {
+    return getBottomPosition() > 0;
+  }
+
   function getMiddlePosition() {
     return Math.floor(getBottomPosition() / 2);
   }
@@ -114,15 +117,63 @@
     });
   }
 
-  actions.forEach((action) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = action.label;
-    button.title = action.title;
-    button.addEventListener('click', action.onClick);
-    panel.appendChild(button);
-  });
+  function createPanel() {
+    const nextPanel = document.createElement('div');
+    nextPanel.id = PANEL_ID;
+
+    actions.forEach((action) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = action.label;
+      button.title = action.title;
+      button.addEventListener('click', action.onClick);
+      nextPanel.appendChild(button);
+    });
+
+    return nextPanel;
+  }
+
+  function updatePanelVisibility() {
+    if (!document.body) {
+      return;
+    }
+
+    if (isPageScrollable()) {
+      if (!panel) {
+        panel = createPanel();
+        document.body.appendChild(panel);
+      }
+      return;
+    }
+
+    if (panel) {
+      panel.remove();
+      panel = null;
+    }
+  }
+
+  function scheduleVisibilityUpdate() {
+    if (refreshScheduled) {
+      return;
+    }
+
+    refreshScheduled = true;
+    window.requestAnimationFrame(() => {
+      refreshScheduled = false;
+      updatePanelVisibility();
+    });
+  }
 
   document.head.appendChild(style);
-  document.body.appendChild(panel);
+  updatePanelVisibility();
+
+  window.addEventListener('resize', scheduleVisibilityUpdate, { passive: true });
+
+  const observer = new MutationObserver(scheduleVisibilityUpdate);
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    characterData: true,
+  });
 })();
